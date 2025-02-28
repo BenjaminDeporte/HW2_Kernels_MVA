@@ -42,6 +42,8 @@ def gaussian_mixture(N, mu=0.3, sigma=0.1):
     X *= Y[:, np.newaxis]
     X -= X.mean(axis=0)
     return X,Y
+
+
 def generateXor(n, mu=0.5, sigma=0.5):
     """ Four gaussian clouds in a Xor fashion """
     X = np.random.normal(mu, sigma, (n, 2))
@@ -106,15 +108,11 @@ def loadMNIST(path):
 			}
 	return data
 
+def plotRegression ():
+    pass
 
+def plot_multiple_images():
+    pass
 
-
-
-
-
-
-
-
-
-
-
+def plotClassification():
+    pass
