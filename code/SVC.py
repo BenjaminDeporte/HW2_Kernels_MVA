@@ -54,12 +54,14 @@ class KernelSVC:
 
         # Lagrange dual problem
         def loss(alpha):
-            objective_function = 1/2 * alpha @ self.gram @ alpha - alpha @ y
+            # objective_function = 1/2 * alpha @ self.gram @ alpha - alpha @ y
+            objective_function = 1/2 * alpha @ self.gram @ alpha - ones @ alpha
             return  objective_function
 
         # Partial derivate of Ld on alpha
         def grad_loss(alpha):
-            gradient = self.gram @ alpha - y
+            # gradient = self.gram @ alpha - y
+            gradient = self.gram @ alpha - ones
             return gradient
         
         # Constraints on alpha of the shape :
@@ -68,10 +70,10 @@ class KernelSVC:
 
         fun_eq = lambda alpha: alpha @ y        
         jac_eq = lambda alpha: y
-        fun_ineq_1 = lambda alpha: Dy @ alpha    
-        jac_ineq_1 = lambda alpha: Dy  # '''---------------jacobian wrt alpha of the  inequality constraint-------------------'''
-        fun_ineq_2 = lambda alpha : C * ones - Dy @ alpha
-        jac_ineq_2 = lambda alpha: -Dy  # '''---------------jacobian wrt alpha of the  inequality constraint-------------------'''
+        fun_ineq_1 = lambda alpha: alpha    
+        jac_ineq_1 = lambda alpha: np.identity(N)  # '''---------------jacobian wrt alpha of the  inequality constraint-------------------'''
+        fun_ineq_2 = lambda alpha : C * ones -  alpha
+        jac_ineq_2 = lambda alpha: -np.identity(N)  # '''---------------jacobian wrt alpha of the  inequality constraint-------------------'''
         # fun_ineq = lambda alpha: np.concatenate((fun_ineq_1(alpha), fun_ineq_2(alpha)))
         
         constraints = ( [{'type': 'eq', 'fun': fun_eq, 'jac': jac_eq},
