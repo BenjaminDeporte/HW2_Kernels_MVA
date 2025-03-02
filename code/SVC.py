@@ -7,6 +7,11 @@ import matplotlib.pyplot as plt
 from utils import plotClassification, plotRegression, plot_multiple_images, generateRings, scatter_label_points, loadMNIST
 # %matplotlib inline    # notebook only
 
+    
+import matplotlib.pyplot as plt
+import matplotlib.colors as pltcolors
+import seaborn as sns
+
 file = open('code/datasets/classification_datasets', 'rb')
 datasets = pkl.load(file)
 # file.close()
@@ -21,8 +26,8 @@ class RBF:
         self.sigma = sigma  ## the variance of the kernel
     def kernel(self,X,Y):
         ## Input vectors X and Y of shape Nxd and Mxd
-        squared_distances = np.array([ [ np.sum((x[i,:]-y[j,:])**2) for j in range(y.shape[0]) ] for i in range(x.shape[0])])
-        return np.exp( -1/(2*sigma**2) * squared_distances )
+        squared_distances = np.array([ [ np.sum((X[i,:]-Y[j,:])**2) for j in range(Y.shape[0]) ] for i in range(X.shape[0])])
+        return np.exp( -1/(2*self.sigma**2) * squared_distances )
     
 class Linear:
     def kernel(self,X,Y):
@@ -123,10 +128,6 @@ class KernelSVC:
         """ Predict y values in {-1, 1} """
         d = self.separating_function(X)
         return 2 * (d+self.b> 0) - 1
-    
-import matplotlib.pyplot as plt
-import matplotlib.colors as pltcolors
-import seaborn as sns
 
 def plotHyperSurface(ax, xRange, model, intercept, label, color='grey', linestyle='-', alpha=1.):
     xx = np.linspace(-1, 1, 100)
@@ -141,7 +142,7 @@ def plotHyperSurface(ax, xRange, model, intercept, label, color='grey', linestyl
         xy = np.vstack([X0.ravel(), X1.ravel()]).T
         Y30 = model.separating_function(xy).reshape(X0.shape) + intercept
         Y30 = Y30.astype(float)
-        ax.contour(X0, X1, Y30, colors=color, levels=[0.], alpha=alpha, linestyles=[linestyle]);
+        ax.contour(X0, X1, Y30, colors=color, levels=[0.], alpha=alpha, linestyles=[linestyle], label=label)
 
 
 def plotClassification(X, y, model=None, label='',  separatorLabel='Separator', 
@@ -157,17 +158,17 @@ def plotClassification(X, y, model=None, label='',  separatorLabel='Separator',
 
     if model is not None:
         # Plot the separating function
-        plotHyperSurface(ax, bound[0], model, model.b, separatorLabel)
+        plotHyperSurface(ax, bound[0], model, model.b, label=separatorLabel)
         if model.support is not None:
             ax.scatter(model.support[:,0], model.support[:,1], label='Support', s=80, facecolors='none', edgecolors='r', color='r')
             print("Number of support vectors = %d" % (len(model.support)))
         
         # Plot the margins
-        intercept_neg = 1.0 ### compute the intercept for the negative margin
-        intercept_pos = -1.0 ### compute the intercept for the positive margin
+        intercept_neg = -0.0 # -1.0 - model.b #- 1.0 ### compute the intercept for the negative margin
+        intercept_pos = +0.0 # -1.0 + model.b # + 1.0 ### compute the intercept for the positive margin
         xx = np.array(bound[0])
-        plotHyperSurface(ax, xx, model, intercept_neg , 'Margin -', linestyle='-.', alpha=0.8)
-        plotHyperSurface(ax, xx, model, intercept_pos , 'Margin +', linestyle='--', alpha=0.8)
+        plotHyperSurface(ax, xx, model, intercept_neg , label='Margin -', linestyle='-.', alpha=0.8)
+        plotHyperSurface(ax, xx, model, intercept_pos , label='Margin +', linestyle='--', alpha=0.8)
             
         # Plot points on the wrong side of the margin
         # wrong_side_points = # find wrong points
@@ -180,7 +181,7 @@ def plotClassification(X, y, model=None, label='',  separatorLabel='Separator',
     ax.set_ylim(bound[1])
     
 C=1.
-kernel = Linear().kernel
+kernel = RBF().kernel
 model = KernelSVC(C=C, kernel=kernel, epsilon=1e-14)
 train_dataset = datasets['dataset_1']['train']
 model.fit(train_dataset['x'], train_dataset['y'])
