@@ -1,6 +1,7 @@
 import numpy as np
 import pickle as pkl
 from scipy import optimize
+from scipy.optimize import LinearConstraint
 from scipy.linalg import cho_factor, cho_solve
 import matplotlib.pyplot as plt
 from utils import plotClassification, plotRegression, plot_multiple_images, generateRings, scatter_label_points, loadMNIST
@@ -30,8 +31,8 @@ class Linear:
     
 class KernelSVC:
     
-    def __init__(self, C, kernel, epsilon = 1e-3):
-        self.type = 'non-linear'
+    def __init__(self, C, kernel, type='non-linear', epsilon = 1e-3):
+        self.type = type
         self.C = C                               
         self.kernel = kernel        
         self.alpha = None
@@ -48,37 +49,42 @@ class KernelSVC:
         # compute gram matrix, we might need it :-)
         self.gram = self.kernel(X,X)
         # vector of ones, size N
-        ones = np.ones(N)
+        self.ones = np.ones(N)
         # matrix NxN of y_i on diagonal
-        Dy = np.diag(y)
+        self.Dy = np.diag(y)
 
         # Lagrange dual problem
         def loss(alpha):
-            # objective_function = 1/2 * alpha @ self.gram @ alpha - alpha @ y
-            objective_function = 1/2 * alpha @ self.gram @ alpha - ones @ alpha
+            objective_function = 1/2 * alpha @ self.gram @ alpha - alpha @ self.y
             return  objective_function
 
         # Partial derivate of Ld on alpha
         def grad_loss(alpha):
-            # gradient = self.gram @ alpha - y
-            gradient = self.gram @ alpha - ones
+            gradient = self.gram @ alpha - self.y
             return gradient
         
         # Constraints on alpha of the shape :
         # -  d - C*alpha  = 0
         # -  b - A*alpha >= 0
 
-        fun_eq = lambda alpha: alpha @ y        
-        jac_eq = lambda alpha: y
-        fun_ineq_1 = lambda alpha: alpha    
-        jac_ineq_1 = lambda alpha: np.identity(N)  # '''---------------jacobian wrt alpha of the  inequality constraint-------------------'''
-        fun_ineq_2 = lambda alpha : C * ones -  alpha
-        jac_ineq_2 = lambda alpha: -np.identity(N)  # '''---------------jacobian wrt alpha of the  inequality constraint-------------------'''
-        # fun_ineq = lambda alpha: np.concatenate((fun_ineq_1(alpha), fun_ineq_2(alpha)))
+        # equality constraint
+        fun_eq = lambda alpha: alpha @ self.ones      
+        jac_eq = lambda alpha: self.ones
+        # inequality constraint
+        inequality_constraint = LinearConstraint(self.Dy, np.zeros(N), self.C * self.ones)
         
+        # fun_ineq_1 = lambda alpha: - self.Dy @ self.alpha
+        # jac_ineq_1 = lambda alpha: - self.Dy  # '''---------------jacobian wrt alpha of the  inequality constraint-------------------'''
+        # fun_ineq_2 = lambda alpha: - self.Dy @ self.alpha + self.C * self.ones
+        # jac_ineq_2 = lambda alpha: - self.Dy  # '''---------------jacobian wrt alpha of the  inequality constraint-------------------'''
+        # # fun_ineq = lambda alpha: np.concatenate((fun_ineq_1(alpha), fun_ineq_2(alpha)))
+        
+        # constraints = ( [{'type': 'eq', 'fun': fun_eq, 'jac': jac_eq},
+        #                 {'type': 'ineq', 'fun': fun_ineq_1, 'jac': jac_ineq_1},
+        #                 {'type': 'ineq', 'fun': fun_ineq_2, 'jac': jac_ineq_2}]
+        #                 )
         constraints = ( [{'type': 'eq', 'fun': fun_eq, 'jac': jac_eq},
-                        {'type': 'ineq', 'fun': fun_ineq_1, 'jac': jac_ineq_1},
-                        {'type': 'ineq', 'fun': fun_ineq_2, 'jac': jac_ineq_2}]
+                        inequality_constraint]
                         )
 
         optRes = optimize.minimize(fun=lambda alpha: loss(alpha),
@@ -89,23 +95,17 @@ class KernelSVC:
         self.alpha = optRes.x
 
         ## Assign the required attributes
-    
-        #'''------------------- A matrix with each row corresponding to support vectors ------------------'''
         # list of indices of support vectors in dataset, None if not a support vector
-        self.indices_support = np.array([ i if (0 < self.alpha[i]*y[i]) and (self.alpha[i]*y[i] < C) else None for i in range(N) ])
+        self.indices_support = np.array([ i if (self.epsilon < self.alpha[i]*self.y[i]) and (self.alpha[i]*self.y[i] < (C - self.epsilon) ) else None for i in range(N) ])
         self.indices_support = self.indices_support[self.indices_support != None].astype(int)
         # support vectors (data points on margin)
         self.support = self.X[self.indices_support]
         # alphas on support vectors
         self.alpha_support = self.alpha[self.indices_support]
-        #'''------------------- b offset of the classifier ------------------'''
-        b = 0
-        Ka = self.gram @ self.alpha
-        for i in range(len(self.indices_support)):
-            if self.indices_support[i] is not None:
-                # b += 1/y[i] - Ka[i]
-                b += 1 - Ka[i]
-        self.b = b / len(self.support)
+        # compute b by averaging over support vectors
+        b = self.y - self.gram @ self.alpha
+        b_sv = b[self.indices_support]
+        self.b = np.mean(b_sv)
         # '''------------------------RKHS norm of the function f ------------------------------'''
         self.norm_f = 1/2 * self.alpha @ self.gram @ self.alpha
         
@@ -129,7 +129,8 @@ import matplotlib.colors as pltcolors
 import seaborn as sns
 
 def plotHyperSurface(ax, xRange, model, intercept, label, color='grey', linestyle='-', alpha=1.):
-    #xx = np.linspace(-1, 1, 100)
+    xx = np.linspace(-1, 1, 100)
+    
     if model.type=='linear':
         xRange = np.array(xRange)
         yy = -(model.w[0] / model.w[1]) * xRange  - intercept/model.w[1]
@@ -155,7 +156,7 @@ def plotClassification(X, y, model=None, label='',  separatorLabel='Separator',
         im = ax.scatter(X[y==label,0], X[y==label,1],  alpha=0.5,label='class '+str(label))
 
     if model is not None:
-        # Plot the seprating function
+        # Plot the separating function
         plotHyperSurface(ax, bound[0], model, model.b, separatorLabel)
         if model.support is not None:
             ax.scatter(model.support[:,0], model.support[:,1], label='Support', s=80, facecolors='none', edgecolors='r', color='r')
