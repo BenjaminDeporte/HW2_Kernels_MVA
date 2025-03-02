@@ -12,6 +12,9 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as pltcolors
 import seaborn as sns
 
+# pour comparaison
+from sklearn.svm import SVC
+
 file = open('code/datasets/classification_datasets', 'rb')
 datasets = pkl.load(file)
 # file.close()
@@ -101,7 +104,7 @@ class KernelSVC:
 
         ## Assign the required attributes
         # list of indices of support vectors in dataset, None if not a support vector
-        self.indices_support = np.array([ i if (self.epsilon < self.alpha[i]*self.y[i]) and (self.alpha[i]*self.y[i] < (C - self.epsilon) ) else None for i in range(N) ])
+        self.indices_support = np.array([ i if (self.epsilon < self.alpha[i]*self.y[i]) and (self.alpha[i]*self.y[i] <= C) else None for i in range(N) ])
         self.indices_support = self.indices_support[self.indices_support != None].astype(int)
         # support vectors (data points on margin)
         self.support = self.X[self.indices_support]
@@ -180,10 +183,36 @@ def plotClassification(X, y, model=None, label='',  separatorLabel='Separator',
     ax.set_xlim(bound[0])
     ax.set_ylim(bound[1])
     
+    
+#----------------------------- ALGO MAISON --------------------------------    
 C=1.
-kernel = RBF().kernel
-model = KernelSVC(C=C, kernel=kernel, epsilon=1e-14)
+kernel = Linear().kernel
+model = KernelSVC(C=C, kernel=kernel, epsilon=1e-13)
 train_dataset = datasets['dataset_1']['train']
 model.fit(train_dataset['x'], train_dataset['y'])
-plotClassification(train_dataset['x'], train_dataset['y'], model, label='Training')
-plt.show()
+print(f"Résultats algo maison :-)")
+print(f"Number of support vectors = {len(model.support)}")
+print(f"Support vectors = {model.support}")
+print(f"Alphas = {model.alpha[model.indices_support]}")
+print(f"b = {model.b}")
+
+# ---------------------------- ALGO SCIKIT --------------------------------
+# comparaison avec scikit
+clf = SVC(C=C, kernel='linear')
+clf.fit(train_dataset['x'], train_dataset['y'])
+print(f"Résultats algo scikit :")
+print(f"Number of support vectors = {len(clf.support_vectors_)}")
+print(f"Support vectors = {clf.support_vectors_}")
+print(f"Dual coefficients = {clf.dual_coef_}")
+print(f"b = {clf.intercept_}")
+
+
+#-------------- ANALYSE -----------------------------------------------------
+print(f"\n")
+print(f"Valeur des alpha_i * y_i du modèle maison (à comparer à C={C}), aux indices de vecteurs support indiqués par scikit :")
+print(f"alpha_i * y_i = {model.alpha[clf.support_] * model.y[clf.support_]}")
+
+
+
+# plotClassification(train_dataset['x'], train_dataset['y'], model, label='Training')
+# plt.show()
